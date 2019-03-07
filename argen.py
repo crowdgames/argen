@@ -1,26 +1,22 @@
-import random
+import datetime, random
 from PIL import Image, ImageChops, ImageDraw
 
 # generation parameters
-GRID_SZ =      21 # size of grid
-PX_RES =       20 # size of each grid cell, in pixels
-PCT_ON =       40 # percent of cells on (0 - 100)
-PADDING =       4 # empty padding around edge
+GRID_SZ =      22 # size of grid
+PX_RES =       24 # size of each grid cell, in pixels
+PCT_ON =       30 # percent of cells on (0 - 100)
+PADDING =       2 # empty padding around edge
 NGEN =         24 # number of tags to generate
-OPT_ITERS =     5 # iterations of optimizaton to make tags different
+OPT_ITERS =   100 # iterations of optimizaton to make tags different
+
+TILE_DIMENSION = 2.0 # in
 
 
 
-# draw a cell on the grid
-def put_cell(draw, x, y, clr):
-    draw.rectangle((PX_RES * (x + PADDING), PX_RES * (y + PADDING), PX_RES * (x + 1 + PADDING) - 1, PX_RES * (y + 1 + PADDING) - 1), clr)
-    
-# function to generate a tag image
+# function to generate a tag grid
 def gen_tag():
-    # create an image big enough for the grid and border
-    im_res = PX_RES * (GRID_SZ + 2 * PADDING)
-    im = Image.new('L', (im_res, im_res), 0)
-    draw = ImageDraw.Draw(im)
+    # create grid
+    grid = [[0 for i1 in xrange(GRID_SZ)] for i2 in xrange(GRID_SZ)]
 
     # set grid cells randomly
     setting = []
@@ -34,27 +30,127 @@ def gen_tag():
     for ii in xrange(GRID_SZ):
         for jj in xrange(GRID_SZ):
             if setting[ii + jj * GRID_SZ]:
-                put_cell(draw, ii, jj, 255)
+                grid[ii][jj] = 1
 
     # draw a frame
     if False:
         for ii in xrange(GRID_SZ):
-            put_cell(draw, ii, 0, 255)
-            put_cell(draw, 0, ii, 255)
-            put_cell(draw, ii, GRID_SZ - 1, ((ii + 1) % 2) * 255)
-            put_cell(draw, GRID_SZ - 1, ii, ((ii + 1) % 2) * 255)
+            grid[ii][0] = 1
+            grid[0][ii] = 1
+            grid[ii][GRID_SZ - 1] = (ii + 1) % 2
+            grid[GRID_SZ - 1][ii] = (ii + 1) % 2
         
     # draw a box in the corner
-    if True:
+    if False:
         for ii in xrange(7):
             for jj in xrange(7):
-                put_cell(draw, ii, jj, 255)
+                grid[ii][jj] = 1
 
         for ii in xrange(3):
             for jj in xrange(3):
-                put_cell(draw, ii + 2, jj + 2, 0)
+                grid[ii + 2][jj + 2] = 0
 
-    return im
+    # draw an arrow in the corner
+    if True:
+        for ii in xrange(7):
+            for jj in xrange(7):
+                grid[ii][jj] = 0
+
+        for ii in xrange(6):
+            for jj in xrange(ii):
+                grid[ii][5 - jj] = 1
+
+        for ii in xrange(6):
+            grid[ii][0] = 1
+            grid[0][ii] = 1
+
+    # draw squares in other corners
+    if True:
+        for ii in xrange(4):
+            for jj in xrange(4):
+                grid[-1-ii][jj] = 0
+                grid[ii][-1-jj] = 0
+                grid[-1-ii][-1-jj] = 0
+
+        for ii in xrange(3):
+            for jj in xrange(3):
+                grid[-1-ii][jj] = 1
+                grid[ii][-1-jj] = 1
+                grid[-1-ii][-1-jj] = 1
+
+        for ii in xrange(1):
+            for jj in xrange(1):
+                grid[-1-ii -1][jj +1] = 0
+                grid[ii +1][-1-jj -1] = 0
+                grid[-1-ii -1][-1-jj -1] = 0
+
+    return grid
+
+
+
+# draw a cell on the grid
+def put_cell(draw, x, y, clr):
+    draw.rectangle((PX_RES * (x + PADDING), PX_RES * (y + PADDING), PX_RES * (x + 1 + PADDING) - 1, PX_RES * (y + 1 + PADDING) - 1), clr)
+
+# turn a grid into an image
+def grid2img(grid, filename):
+    im_res = PX_RES * (GRID_SZ + 2 * PADDING)
+    im = Image.new('L', (im_res, im_res), 0)
+    draw = ImageDraw.Draw(im)
+
+    for ii in xrange(GRID_SZ):
+        for jj in xrange(GRID_SZ):
+            put_cell(draw, ii, jj, grid[ii][jj] * 255)
+
+    im.save(filename)
+
+
+
+# turn a grid into an svg
+def grids2svg(grids, filename):
+    svg_padding = PADDING + 2
+
+    COLS = 3
+    ROWS = len(grids) / COLS
+    if len(grids) % COLS != 0:
+        ROWS += 1
+
+    TILE_SPACING = 2 * PX_RES
+ 
+    tile_res = PX_RES * (GRID_SZ + 2 * svg_padding)
+
+    PPI = tile_res / TILE_DIMENSION
+
+    im_w = COLS * tile_res + (COLS - 1) * TILE_SPACING
+    im_h = ROWS * tile_res + (ROWS - 1) * TILE_SPACING
+
+    with open(filename, 'w') as outfile:
+        outfile.write('<svg width="%0.2fin" height="%0.2fin" version="1.1" viewBox="0 0 %d %d" xmlns="http://www.w3.org/2000/svg">\n' % (im_w / PPI, im_h / PPI, im_w, im_h))
+
+        for number, grid in enumerate(grids):
+            x_off = (number % COLS) * (TILE_SPACING + tile_res)
+            y_off = (number / COLS) * (TILE_SPACING + tile_res)
+
+            outfile.write('<rect fill="none" stroke="black" stroke-width="0.001in" x="%d" y="%d" width="%d" height="%d" rx="%d" ry="%d"/>\n' % (x_off, y_off, tile_res, tile_res, PX_RES, PX_RES))
+
+            for x in xrange(GRID_SZ):
+                for y in xrange(GRID_SZ):
+                    if grid[x][y]:
+                        outfile.write('<rect fill="black" stroke="none" x="%d" y="%d" width="%d" height="%d"/>\n' % (x_off + PX_RES * (x + svg_padding), y_off + PX_RES * (y + svg_padding), PX_RES, PX_RES))
+
+            DIGITS = 6
+            binary = ('%%%ds' % DIGITS) % ('{0:b}'.format(number + 1))
+            for ii in xrange(DIGITS):
+                x = x_off + int(tile_res / 2.0 - PX_RES * DIGITS / 2.0 + PX_RES * (ii + 0.5))
+                y = y_off + int(tile_res - 2.0 * PX_RES)
+                w = (PX_RES / 2)
+                h = (PX_RES / 2)
+                if binary[ii] == '1':
+                    outfile.write('<path fill="none" stroke="black" stroke-width="0.01in" d="M %d %d v %d"/>\n' % (x, y, h))
+                else:
+                    outfile.write('<rect fill="none" stroke="black" stroke-width="0.01in" x="%d" y="%d" width="%d" height="%d" rx="%d" ry="%d" />\n' % (x - w / 2, y, w, h, w/4, w/4))
+
+        outfile.write('</svg>\n')
 
 
 
@@ -70,17 +166,22 @@ for ii in xrange(NGEN):
 
 # function to calculate the objective function for a list of tags
 def calc_obj(obj_tags):
-    obj = 0
-    for ii, tag_ii in enumerate(obj_tags):
-        for jj, tag_jj in enumerate(obj_tags[ii + 0:]):
-            obj += ImageChops.difference(tag_ii, tag_jj).histogram()[-1]
+    obj = GRID_SZ * GRID_SZ
+    for aa, tag_aa in enumerate(obj_tags):
+        for bb, tag_bb in enumerate(obj_tags[aa + 1:]):
+            othis = 0
+            for ii in xrange(GRID_SZ):
+                for jj in xrange(GRID_SZ):
+                    if tag_aa[ii][jj] >= tag_bb[ii][jj]:
+                        othis += 1
+            obj += othis
     return obj
 
 # try optimizing for given number of iters
 for oo in xrange(OPT_ITERS):
     # calc initial objective value
     obj = calc_obj(tags)
-    print obj
+    print oo + 1, obj
 
     # go through each tag
     for ii in xrange(len(tags)):
@@ -98,5 +199,7 @@ for oo in xrange(OPT_ITERS):
 
 
 # save out the tags
-for ii, tag in enumerate(tags):
-    tag.save('tag-%03d.png' % ii)
+filename = 'tile-%s' % (datetime.date.today().strftime('%Y%m%d'))
+grids2svg(tags, filename + '.svg')
+for number, tag in enumerate(tags):
+    grid2img(tag, filename + ('-%03d.png' % (number + 1)))
