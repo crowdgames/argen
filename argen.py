@@ -7,6 +7,7 @@ PX_RES =       24 # size of each grid cell, in pixels
 PCT_ON =       30 # percent of cells on (0 - 100)
 PADDING =       2 # empty padding around edge
 NGEN =         24 # number of tags to generate
+NGEN_TUT =      6 # number of tutorial tags to generate
 OPT_ITERS =   100 # iterations of optimizaton to make tags different
 
 TILE_DIMENSION = 2.0 # in
@@ -14,7 +15,7 @@ TILE_DIMENSION = 2.0 # in
 
 
 # function to generate a tag grid
-def gen_tag():
+def gen_tag(istut):
     # create grid
     grid = [[0 for i1 in xrange(GRID_SZ)] for i2 in xrange(GRID_SZ)]
 
@@ -32,37 +33,19 @@ def gen_tag():
             if setting[ii + jj * GRID_SZ]:
                 grid[ii][jj] = 1
 
-    # draw a frame
-    if False:
-        for ii in xrange(GRID_SZ):
-            grid[ii][0] = 1
-            grid[0][ii] = 1
-            grid[ii][GRID_SZ - 1] = (ii + 1) % 2
-            grid[GRID_SZ - 1][ii] = (ii + 1) % 2
-        
-    # draw a box in the corner
-    if False:
-        for ii in xrange(7):
-            for jj in xrange(7):
-                grid[ii][jj] = 1
-
-        for ii in xrange(3):
-            for jj in xrange(3):
-                grid[ii + 2][jj + 2] = 0
-
     # draw an arrow in the corner
-    if True:
-        for ii in xrange(7):
-            for jj in xrange(7):
-                grid[ii][jj] = 0
+    for ii in xrange(8):
+        for jj in xrange(8):
+            grid[ii][jj] = 1 if (ii < 7 and jj < 7) else 0
 
+    if istut:
+        for ii in xrange(5):
+            grid[ii + 1][1] = 0
+            grid[6 / 2][ii + 1] = 0
+    else:
         for ii in xrange(6):
             for jj in xrange(ii):
-                grid[ii][5 - jj] = 1
-
-        for ii in xrange(6):
-            grid[ii][0] = 1
-            grid[0][ii] = 1
+                grid[6 - ii][1 + jj] = 0
 
     # draw squares in other corners
     if True:
@@ -116,7 +99,7 @@ def grids2svg(grids, filename):
         ROWS += 1
 
     TILE_SPACING = 2 * PX_RES
- 
+
     tile_res = PX_RES * (GRID_SZ + 2 * svg_padding)
 
     PPI = tile_res / TILE_DIMENSION
@@ -157,10 +140,14 @@ def grids2svg(grids, filename):
 # set random seed
 random.seed(15487469)
 
+
+def tut_tag(number):
+    return number >= NGEN
+
 # generate initial tags
 tags = []
-for ii in xrange(NGEN):
-    tags.append(gen_tag())
+for ii in xrange(NGEN + NGEN_TUT):
+    tags.append(gen_tag(tut_tag(ii)))
 
 
 
@@ -187,7 +174,7 @@ for oo in xrange(OPT_ITERS):
     for ii in xrange(len(tags)):
         # make a new list of tags with that tag updated
         new_tags = list(tags)
-        new_tags[ii] = gen_tag()
+        new_tags[ii] = gen_tag(tut_tag(ii))
 
         # check the new objective value
         new_obj = calc_obj(new_tags)
@@ -202,4 +189,5 @@ for oo in xrange(OPT_ITERS):
 filename = 'tile-%s' % (datetime.date.today().strftime('%Y%m%d'))
 grids2svg(tags, filename + '.svg')
 for number, tag in enumerate(tags):
-    grid2img(tag, filename + ('-%03d.png' % (number + 1)))
+    ty = 'T' if tut_tag(number) else 'D'
+    grid2img(tag, filename + ('-%s%03d.png' % (ty, number + 1)))
